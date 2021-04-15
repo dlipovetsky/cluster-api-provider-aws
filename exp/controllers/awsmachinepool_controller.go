@@ -20,9 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-
-	"sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -30,10 +28,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/cluster-api-provider-aws/controllers"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
-	capiv1exp "sigs.k8s.io/cluster-api/exp/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -42,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-aws/api/v1alpha3"
+	"sigs.k8s.io/cluster-api-provider-aws/controllers"
 	ekscontrolplane "sigs.k8s.io/cluster-api-provider-aws/controlplane/eks/api/v1alpha3"
 	infrav1exp "sigs.k8s.io/cluster-api-provider-aws/exp/api/v1alpha3"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud"
@@ -49,6 +46,16 @@ import (
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services"
 	asg "sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/autoscaling"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/ec2"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
+	capiv1exp "sigs.k8s.io/cluster-api/exp/api/v1alpha3"
+	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/conditions"
+)
+
+const (
+	// MapperTimeout is the duration allowed to map an object to an AWSMachinePool.
+	MapperTimeout = 60 * time.Second
 )
 
 // AWSMachinePoolReconciler reconciles a AWSMachinePool object
@@ -183,6 +190,14 @@ func (r *AWSMachinePoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&source.Kind{Type: &capiv1exp.MachinePool{}},
 			&handler.EnqueueRequestsFromMapFunc{
 				ToRequests: machinePoolToInfrastructureMapFunc(infrav1exp.GroupVersion.WithKind("AWSMachinePool")),
+			},
+		).
+		Watches(
+			// TODO(dlipovetsky) To watch only metadata, use
+			// &source.Kind{Type: builder.OnlyMetadata(&corev1.Secret{})},
+			&source.Kind{Type: &corev1.Secret{}},
+			&handler.EnqueueRequestsFromMapFunc{
+				ToRequests: handler.ToRequestsFunc(r.bootstrapSecretToAWSMachinePool),
 			},
 		).
 		Complete(r)
@@ -558,6 +573,82 @@ func machinePoolToInfrastructureMapFunc(gvk schema.GroupVersionKind) handler.ToR
 				},
 			},
 		}
+	}
+}
+
+// bootstrapSecretToAWSMachinePool maps a bootstrap Secret to its associated AWSMachinePool.
+func (r *AWSMachinePoolReconciler) bootstrapSecretToAWSMachinePool(o handler.MapObject) []ctrl.Request {
+	ctx, cancel := context.WithTimeout(context.Background(), MapperTimeout)
+	defer cancel()
+
+	s, ok := o.Object.(*corev1.Secret)
+	if !ok {
+		r.Log.Error(nil, fmt.Sprintf("Expected a Secret but got a %T", o.Object))
+		return nil
+	}
+
+	log := r.Log.WithValues("objectMapper", "bootstrapSecretToAWSMachinePool", "secretNamespace", s.Namespace, "secretName", s.Name)
+
+	if !s.ObjectMeta.DeletionTimestamp.IsZero() {
+		log.V(4).Info("Secret has a deletion timestamp, skipping mapping.")
+		return nil
+	}
+
+	if len(s.ObjectMeta.GetOwnerReferences()) == 0 {
+		log.V(4).Info("Secret has no owner references, skipping mapping.")
+		return nil
+	}
+
+	// Find the MachinePool associated with the bootstrap data Secret. The bootstrap data Secret has
+	// an owner reference to a bootstrap config, which may have an owner reference to a MachinePool.
+	// Worst case is O(n^2), but in practice bootstrap data Secrets and bootstrap configs have one
+	// owner reference, and MachinePools have one infrastructure ref, so expect O(1).
+	var mp *capiv1exp.MachinePool
+	var errs []error
+	for _, ref := range s.ObjectMeta.GetOwnerReferences() {
+		// Only a bootstrap config can lead to a MachinePool
+		if ref.APIVersion != bootstrapv1.GroupVersion.String() {
+			continue
+		}
+
+		// The metadata alone has the owner references we need
+		so := metav1.PartialObjectMetadata{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: ref.APIVersion,
+				Kind:       ref.Kind,
+			},
+		}
+		key := client.ObjectKey{Namespace: s.Namespace, Name: ref.Name}
+		err := r.Client.Get(ctx, key, &so)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		mp, err = getOwnerMachinePool(ctx, r.Client, so.ObjectMeta)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		log.Error(kerrors.NewAggregate(errs), "Unable to get Secret owner(s).")
+		return nil
+	}
+	if mp == nil {
+		log.V(4).Info("None of the Secret owner(s) has a MachinePool owner, skipping mapping.")
+		return nil
+	}
+
+	if mp.Spec.Template.Spec.InfrastructureRef.GroupVersionKind().GroupKind() != infrav1exp.GroupVersion.WithKind("AWSMachinePool").GroupKind() {
+		log.V(4).Info("One Secret owner has a MachinePool owner, but the MachinePool does not have an InfrastructureRef to an AWSMachinePool, skipping mapping.", "machinePoolNamespace", mp.Namespace, "machinePoolName", mp.Name)
+		return nil
+	}
+
+	return []ctrl.Request{
+		{
+			NamespacedName: client.ObjectKey{
+				Name:      mp.Spec.Template.Spec.InfrastructureRef.Name,
+				Namespace: mp.Spec.Template.Spec.InfrastructureRef.Namespace,
+			},
+		},
 	}
 }
 

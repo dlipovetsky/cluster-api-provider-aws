@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"testing"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/cluster-api-provider-aws/test/helpers"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1alpha3"
 	clusterv1exp "sigs.k8s.io/cluster-api/exp/api/v1alpha3"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	// +kubebuilder:scaffold:imports
@@ -70,6 +72,7 @@ func setup() {
 	utilruntime.Must(infrav1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(infrav1exp.AddToScheme(scheme.Scheme))
+	utilruntime.Must(bootstrapv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(clusterv1exp.AddToScheme(scheme.Scheme))
 	testEnvConfig := helpers.NewTestEnvironmentConfiguration([]string{
 		path.Join("config", "crd", "bases"),
@@ -98,6 +101,12 @@ func setup() {
 	if err := (&infrav1exp.AWSManagedMachinePool{}).SetupWebhookWithManager(testEnv); err != nil {
 		panic(fmt.Sprintf("Unable to setup AWSManagedMachinePool webhook: %v", err))
 	}
+	if err := (&bootstrapv1.KubeadmConfig{}).SetupWebhookWithManager(testEnv); err != nil {
+		panic(fmt.Sprintf("Unable to setup KubeadmConfig webhook: %v", err))
+	}
+	if err := (&clusterv1exp.MachinePool{}).SetupWebhookWithManager(testEnv); err != nil {
+		panic(fmt.Sprintf("Unable to setup MachinePool webhook: %v", err))
+	}
 	go func() {
 		fmt.Println("Starting the manager")
 		if err := testEnv.StartManager(); err != nil {
@@ -105,6 +114,12 @@ func setup() {
 		}
 	}()
 	testEnv.WaitForWebhooks()
+
+	cfg = testEnv.GetConfig()
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	if err != nil {
+		panic(fmt.Sprintf("Unable to setup Kubernetes Client for envtest API server: %v", err))
+	}
 }
 
 func teardown() {
