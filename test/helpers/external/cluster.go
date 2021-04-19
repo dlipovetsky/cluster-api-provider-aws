@@ -17,37 +17,40 @@ limitations under the License.
 package external
 
 import (
-	"strings"
-
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
 
 const (
-	clusterAPIGroup       = "cluster.x-k8s.io"
+	// Every placeholder for a Cluster API CRD is created with this version.
 	clusterAPITestVersion = "v1alpha3"
 )
 
 var (
-	TestClusterCRD = generateTestClusterAPICRD("cluster", "clusters")
-	TestMachineCRD = generateTestClusterAPICRD("machine", "machines")
+	// Add placeholders for Cluster API CRDs here.
+	// Kind must be CamelCase, e.g. "KubeadmConfig"
+	// Pluralkind must be lowercase, e.g., "kubeadmconfig"
+	TestClusterCRD       = generateTestClusterAPICRD("cluster.x-k8s.io", "Cluster", "clusters")
+	TestMachineCRD       = generateTestClusterAPICRD("cluster.x-k8s.io", "Machine", "machines")
+	TestKubeadmConfigCRD = generateTestClusterAPICRD("bootstrap.cluster.x-k8s.io", "KubeadmConfig", "kubeadmconfigs")
+	TestMachinePoolCRD   = generateTestClusterAPICRD("exp.cluster.x-k8s.io", "MachinePool", "machinepools")
 )
 
-func generateTestClusterAPICRD(kind, pluralKind string) *apiextensionsv1.CustomResourceDefinition {
+func generateTestClusterAPICRD(group, kind, pluralKind string) *apiextensionsv1.CustomResourceDefinition {
 	return &apiextensionsv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: apiextensionsv1.SchemeGroupVersion.String(),
 			Kind:       "CustomResourceDefinition",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: pluralKind + "." + clusterAPIGroup,
+			Name: pluralKind + "." + group,
 		},
 		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-			Group: "cluster.x-k8s.io",
+			Group: group,
 			Scope: apiextensionsv1.NamespaceScoped,
 			Names: apiextensionsv1.CustomResourceDefinitionNames{
-				Kind:   strings.Title(kind),
+				Kind:   kind,
 				Plural: pluralKind,
 			},
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{

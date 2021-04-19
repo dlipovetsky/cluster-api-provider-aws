@@ -117,6 +117,8 @@ func NewTestEnvironmentConfiguration(crdDirectoryPaths []string) *TestEnvironmen
 			CRDs: []runtime.Object{
 				external.TestClusterCRD.DeepCopy(),
 				external.TestMachineCRD.DeepCopy(),
+				external.TestKubeadmConfigCRD.DeepCopy(),
+				external.TestMachinePoolCRD.DeepCopy(),
 			},
 		},
 	}
