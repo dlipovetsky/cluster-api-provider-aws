@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -242,6 +243,28 @@ func (s *Service) DeleteLaunchTemplate(id string) error {
 	}
 
 	s.scope.V(2).Info("Deleted launch template", "id", id)
+	return nil
+}
+
+func (s *Service) DeleteLaunchTemplateVersion(id string, version *int64) error {
+	s.scope.V(2).Info("Deleting launch template", "id", id)
+
+	if version == nil {
+		return errors.New("version is a nil pointer")
+	}
+	versions := []string{strconv.FormatInt(*version, 10)}
+
+	input := &ec2.DeleteLaunchTemplateVersionsInput{
+		LaunchTemplateId: aws.String(id),
+		Versions:         aws.StringSlice(versions),
+	}
+
+	_, err := s.EC2Client.DeleteLaunchTemplateVersions(input)
+	if err != nil {
+		return err
+	}
+
+	s.scope.V(2).Info("Deleted launch template id %q, version %q", id, *version)
 	return nil
 }
 
