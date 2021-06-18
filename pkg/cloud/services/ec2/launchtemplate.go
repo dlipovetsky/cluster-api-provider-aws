@@ -282,7 +282,7 @@ func (s *Service) PruneLaunchTemplateVersions(id string) error {
 }
 
 func (s *Service) deleteLaunchTemplateVersion(id string, version *int64) error {
-	s.scope.V(2).Info("Deleting launch template", "id", id)
+	s.scope.V(2).Info("Deleting launch template version", "id", id)
 
 	if version == nil {
 		return errors.New("version is a nil pointer")
