@@ -455,24 +455,12 @@ func (r *AWSMachinePoolReconciler) reconcileLaunchTemplate(machinePoolScope *sco
 	// userdata, OR we've discovered a new AMI ID.
 	if needsUpdate || tagsChanged || *imageID != *launchTemplate.AMI.ID || launchTemplateUserDataHash != bootstrapDataHash {
 		machinePoolScope.Info("creating new version for launch template", "existing", launchTemplate, "incoming", machinePoolScope.AWSMachinePool.Spec.AWSLaunchTemplate)
-		// Delete current launch template version.
-		//
-		// The alternative is to describe all versions and delete all but the latest and default
-		// ones. That is more complex, and seems unnecessary, because the controller uses only the
-		// latest template version.
-		//
-		// This is safe:
-		// If delete fails, a new version is not created.
-		// If delete succeeds:
-		//	But create fails, then a new version can be created during the next reconcile.
-		//  And create succeeds, then the reconcile is a success.
-		// Correction! This is not safe.
-		// And it will not work, if the latest version is the first version, and therefore the default, which cannot be removed.
+		if err := ec2svc.PruneLaunchTemplateVersions(machinePoolScope.AWSMachinePool.Status.LaunchTemplateID); err != nil {
+			return err
+		}
 		if err := ec2svc.CreateLaunchTemplateVersion(machinePoolScope, imageID, bootstrapData); err != nil {
 			return err
 		}
-		// Delete the current launch template version, unless it is the first version, which is the default, and cannot be deleted.
-
 	}
 
 	// After creating a new version of launch template, instance refresh is required

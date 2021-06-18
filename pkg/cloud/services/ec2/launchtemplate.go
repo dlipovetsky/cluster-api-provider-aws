@@ -246,6 +246,17 @@ func (s *Service) DeleteLaunchTemplate(id string) error {
 	return nil
 }
 
+// Purpose: Delete one old launch template version.
+// Invariant: For each version we create, we must delete one old version. Therefore, do not create a new version if one old version could not be deleted.
+// Constraints:
+// - We may fail to create the new version. Therefore, do not delete the latest version, which is the version currently in use.
+// - We cannot delete the default version.
+// - Versions may be deleted out of band. Therefore, do not assume that version numbers are sequential.
+// Algorithm: Delete one version older than the latest version.
+func (s *Service) PruneLaunchTemplateVersions(id string) error {
+	return nil
+}
+
 func (s *Service) DeleteLaunchTemplateVersion(id string, version *int64) error {
 	s.scope.V(2).Info("Deleting launch template", "id", id)
 
