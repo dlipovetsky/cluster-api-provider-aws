@@ -246,18 +246,42 @@ func (s *Service) DeleteLaunchTemplate(id string) error {
 	return nil
 }
 
-// Purpose: Delete one old launch template version.
-// Invariant: For each version we create, we must delete one old version. Therefore, do not create a new version if one old version could not be deleted.
-// Constraints:
-// - We may fail to create the new version. Therefore, do not delete the latest version, which is the version currently in use.
-// - We cannot delete the default version.
-// - Versions may be deleted out of band. Therefore, do not assume that version numbers are sequential.
-// Algorithm: Delete one version older than the latest version.
+// PruneLaunchTemplateVersions deletes one old launch template version.
+// It does not delete the "latest" version, because that version may still be in use.
+// It does not delete the "default" version, because that version cannot be deleted.
+// It does not assume that versions are sequential. Versions may be deleted out of band.
 func (s *Service) PruneLaunchTemplateVersions(id string) error {
-	return nil
+	// When there is one version available, it is the default and the latest.
+	// When there are two versions available, one the is the default, the other is the latest.
+	// Therefore we only prune when there are at least 3 versions available.
+	const minCountToAllowPrune = 3
+
+	input := &ec2.DescribeLaunchTemplateVersionsInput{
+		LaunchTemplateId: aws.String(id),
+		MinVersion:       aws.String("0"),
+		MaxVersion:       aws.String(expinfrav1.LaunchTemplateLatestVersion),
+		MaxResults:       aws.Int64(minCountToAllowPrune),
+	}
+
+	out, err := s.EC2Client.DescribeLaunchTemplateVersions(input)
+	if err != nil {
+		s.scope.Info("", "aerr", err.Error())
+		return err
+	}
+
+	// len(out.LaunchTemplateVersions)	|	items
+	// -------------------------------- + -----------------------
+	// 								1	|	[default/latest]
+	// 								2	|	[default, latest]
+	// 								3	| 	[default, versionToPrune, latest]
+	if len(out.LaunchTemplateVersions) < minCountToAllowPrune {
+		return nil
+	}
+	versionToPrune := out.LaunchTemplateVersions[1].VersionNumber
+	return s.deleteLaunchTemplateVersion(id, versionToPrune)
 }
 
-func (s *Service) DeleteLaunchTemplateVersion(id string, version *int64) error {
+func (s *Service) deleteLaunchTemplateVersion(id string, version *int64) error {
 	s.scope.V(2).Info("Deleting launch template", "id", id)
 
 	if version == nil {

@@ -110,20 +110,6 @@ func (mr *MockEC2MachineInterfaceMockRecorder) DeleteLaunchTemplate(arg0 interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLaunchTemplate", reflect.TypeOf((*MockEC2MachineInterface)(nil).DeleteLaunchTemplate), arg0)
 }
 
-// DeleteOldestLaunchTemplateVersionInRange mocks base method.
-func (m *MockEC2MachineInterface) DeleteOldestLaunchTemplateVersionInRange(arg0 string, arg1, arg2 int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldestLaunchTemplateVersionInRange", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteOldestLaunchTemplateVersionInRange indicates an expected call of DeleteOldestLaunchTemplateVersionInRange.
-func (mr *MockEC2MachineInterfaceMockRecorder) DeleteOldestLaunchTemplateVersionInRange(arg0, arg1, arg2 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldestLaunchTemplateVersionInRange", reflect.TypeOf((*MockEC2MachineInterface)(nil).DeleteOldestLaunchTemplateVersionInRange), arg0, arg1, arg2)
-}
-
 // DetachSecurityGroupsFromNetworkInterface mocks base method.
 func (m *MockEC2MachineInterface) DetachSecurityGroupsFromNetworkInterface(arg0 []string, arg1 string) error {
 	m.ctrl.T.Helper()
