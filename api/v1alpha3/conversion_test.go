@@ -31,9 +31,19 @@ import (
 
 func fuzzFuncs(_ runtimeserializer.CodecFactory) []interface{} {
 	return []interface{}{
+		AWSClusterFuzzer,
 		AWSClusterStaticIdentityFuzzer,
 		AWSMachineFuzzer,
 		AWSMachineTemplateFuzzer,
+	}
+}
+
+func AWSClusterFuzzer(obj *v1alpha4.AWSCluster, c fuzz.Continue) {
+	c.FuzzNoCustom(obj)
+
+	// AWSCluster.Spec.ControlPlaneLoadbalancer.Name does not exist in v1alpha3, so setting it to nil in order to avoid v1alpha4 --> v1alpha3 --> v1alpha4 round trip errors.
+	obj.Spec.ControlPlaneLoadBalancer = &v1alpha4.AWSLoadBalancerSpec{
+		Name: nil,
 	}
 }
 
@@ -67,9 +77,10 @@ func TestFuzzyConversion(t *testing.T) {
 	g.Expect(v1alpha4.AddToScheme(scheme)).To(Succeed())
 
 	t.Run("for AWSCluster", utilconversion.FuzzTestFunc(utilconversion.FuzzTestFuncInput{
-		Scheme: scheme,
-		Hub:    &v1alpha4.AWSCluster{},
-		Spoke:  &AWSCluster{},
+		Scheme:      scheme,
+		Hub:         &v1alpha4.AWSCluster{},
+		Spoke:       &AWSCluster{},
+		FuzzerFuncs: []fuzzer.FuzzerFuncs{fuzzFuncs},
 	}))
 
 	t.Run("for AWSMachine", utilconversion.FuzzTestFunc(utilconversion.FuzzTestFuncInput{
