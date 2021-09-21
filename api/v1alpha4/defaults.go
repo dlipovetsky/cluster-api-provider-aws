@@ -17,7 +17,14 @@ limitations under the License.
 package v1alpha4
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilpointer "k8s.io/utils/pointer"
+	"sigs.k8s.io/cluster-api-provider-aws/pkg/hash"
 	clusterv1 "sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3"
 )
 
@@ -61,4 +68,54 @@ func SetDefaults_Labels(obj *metav1.ObjectMeta) { //nolint:golint,stylecheck
 		obj.Labels = map[string]string{
 			clusterv1.ClusterctlMoveHierarchyLabelName: ""}
 	}
+}
+
+func SetDefaults_AWSLoadBalancerSpec(log logr.Logger, clusterName string, obj *AWSLoadBalancerSpec) {
+	if obj == nil {
+		obj = &AWSLoadBalancerSpec{}
+	}
+
+	if obj.Name == nil {
+		defaultName, err := GenerateELBName(clusterName)
+		if err != nil {
+			log.Error(err, "Failed to generate ELB name")
+		}
+		obj.Name = utilpointer.StringPtr(defaultName)
+	}
+}
+
+// GenerateELBName generates a formatted ELB name via either
+// concatenating the cluster name to the "-apiserver" suffix
+// or computing a hash for clusters with names above 32 characters.
+func GenerateELBName(clusterName string) (string, error) {
+	standardELBName := generateStandardELBName(clusterName)
+	if len(standardELBName) <= 32 {
+		return standardELBName, nil
+	}
+
+	elbName, err := generateHashedELBName(clusterName)
+	if err != nil {
+		return "", err
+	}
+
+	return elbName, nil
+}
+
+// generateStandardELBName generates a formatted ELB name based on cluster
+// and ELB name.
+func generateStandardELBName(clusterName string) string {
+	elbCompatibleClusterName := strings.ReplaceAll(clusterName, ".", "-")
+	return fmt.Sprintf("%s-%s", elbCompatibleClusterName, APIServerRoleTagValue)
+}
+
+// generateHashedELBName generates a 32-character hashed name based on cluster
+// and ELB name.
+func generateHashedELBName(clusterName string) (string, error) {
+	// hashSize = 32 - length of "k8s" - length of "-" = 28
+	shortName, err := hash.Base36TruncatedHash(clusterName, 28)
+	if err != nil {
+		return "", errors.Wrap(err, "unable to create ELB name")
+	}
+
+	return fmt.Sprintf("%s-%s", shortName, "k8s"), nil
 }

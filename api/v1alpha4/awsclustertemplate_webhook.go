@@ -23,8 +23,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
+
+var actLog = logf.Log.WithName("awsclustertemplate-resource")
 
 func (r *AWSClusterTemplate) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
@@ -39,7 +42,8 @@ var _ webhook.Defaulter = &AWSClusterTemplate{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type.
 func (r *AWSClusterTemplate) Default() {
-	SetDefaultsAWSClusterSpec(&r.Spec.Template.Spec)
+	log := actLog.WithName(r.Name)
+	SetDefaultsAWSClusterSpec(log, r.Name, &r.Spec.Template.Spec)
 }
 
 var _ webhook.Validator = &AWSClusterTemplate{}

@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilpointer "k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	utildefaulting "sigs.k8s.io/cluster-api/util/defaulting"
 )
@@ -124,6 +125,42 @@ func TestAWSCluster_ValidateUpdate(t *testing.T) {
 				},
 			},
 			wantErr: false,
+		},
+		{
+			name: "controlPlaneLoadBalancer name can be ",
+			oldCluster: &AWSCluster{
+				Spec: AWSClusterSpec{
+					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
+						Name: utilpointer.String("elb"),
+					},
+				},
+			},
+			newCluster: &AWSCluster{
+				Spec: AWSClusterSpec{
+					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
+						Name: utilpointer.String("elb"),
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "controlPlaneLoadBalancer name cannot be changed once set",
+			oldCluster: &AWSCluster{
+				Spec: AWSClusterSpec{
+					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
+						Name: utilpointer.String("old"),
+					},
+				},
+			},
+			newCluster: &AWSCluster{
+				Spec: AWSClusterSpec{
+					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
+						Name: utilpointer.String("new"),
+					},
+				},
+			},
+			wantErr: true,
 		},
 		{
 			name: "controlPlaneLoadBalancer crossZoneLoadBalancer is mutable",

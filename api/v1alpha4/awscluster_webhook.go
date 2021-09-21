@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -31,7 +32,7 @@ import (
 )
 
 // log is for logging in this package.
-var _ = logf.Log.WithName("awscluster-resource")
+var acLog = logf.Log.WithName("awscluster-resource")
 
 func (r *AWSCluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
@@ -91,6 +92,12 @@ func (r *AWSCluster) ValidateUpdate(old runtime.Object) error {
 					r.Spec.ControlPlaneLoadBalancer.Scheme, "field is immutable, default value was set to internet-facing"),
 			)
 		}
+		if newLoadBalancer.Name != nil {
+			allErrs = append(allErrs,
+				field.Invalid(field.NewPath("spec", "controlPlaneLoadBalancer", "name"),
+					r.Spec.ControlPlaneLoadBalancer.Name, "field is immutable, default value was generated"),
+			)
+		}
 	} else {
 		// If old scheme was not nil, the new scheme should be the same.
 		existingLoadBalancer := oldC.Spec.ControlPlaneLoadBalancer.DeepCopy()
@@ -144,16 +151,18 @@ func (r *AWSCluster) ValidateUpdate(old runtime.Object) error {
 
 // Default satisfies the defaulting webhook interface.
 func (r *AWSCluster) Default() {
-	SetDefaultsAWSClusterSpec(&r.Spec)
+	log := acLog.WithName(r.Name)
+	SetDefaultsAWSClusterSpec(log, r.Name, &r.Spec)
 }
 
 func (r *AWSCluster) validateSSHKeyName() field.ErrorList {
 	return validateSSHKeyName(r.Spec.SSHKeyName)
 }
 
-func SetDefaultsAWSClusterSpec(s *AWSClusterSpec) {
+func SetDefaultsAWSClusterSpec(log logr.Logger, clusterName string, s *AWSClusterSpec) {
 	SetDefaults_Bastion(&s.Bastion)
 	SetDefaults_NetworkSpec(&s.NetworkSpec)
+	SetDefaults_AWSLoadBalancerSpec(log, clusterName, s.ControlPlaneLoadBalancer)
 
 	if s.IdentityRef == nil {
 		s.IdentityRef = &AWSIdentityReference{
