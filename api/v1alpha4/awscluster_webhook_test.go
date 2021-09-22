@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilpointer "k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	utildefaulting "sigs.k8s.io/cluster-api/util/defaulting"
 )
@@ -124,6 +125,38 @@ func TestAWSCluster_ValidateUpdate(t *testing.T) {
 				},
 			},
 			wantErr: false,
+		},
+		{
+			name: "controlPlaneLoadBalancer name is immutable",
+			oldCluster: &AWSCluster{
+				Spec: AWSClusterSpec{
+					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
+						Name: utilpointer.String("old"),
+					},
+				},
+			},
+			newCluster: &AWSCluster{
+				Spec: AWSClusterSpec{
+					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
+						Name: utilpointer.String("new"),
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "controlPlaneLoadBalancer name is immutable when left empty",
+			oldCluster: &AWSCluster{
+				Spec: AWSClusterSpec{},
+			},
+			newCluster: &AWSCluster{
+				Spec: AWSClusterSpec{
+					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
+						Name: utilpointer.String("new"),
+					},
+				},
+			},
+			wantErr: true,
 		},
 		{
 			name: "controlPlaneLoadBalancer crossZoneLoadBalancer is mutable",
@@ -238,6 +271,55 @@ func TestAWSCluster_ValidateUpdate(t *testing.T) {
 			ctx := context.TODO()
 			cluster := tt.oldCluster.DeepCopy()
 			cluster.ObjectMeta.GenerateName = "cluster-"
+			cluster.ObjectMeta.Namespace = "default"
+
+			if err := testEnv.Create(ctx, cluster); err != nil {
+				t.Errorf("failed to create cluster: %v", err)
+			}
+			cluster.ObjectMeta.Annotations = tt.newCluster.Annotations
+			cluster.Spec = tt.newCluster.Spec
+			if err := testEnv.Update(ctx, cluster); (err != nil) != tt.wantErr {
+				t.Errorf("ValidateUpdate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		},
+		)
+	}
+}
+
+// TestAWSCluster_ValidateUpdate_NoGenerateName creates/updates AWSCluster objects with constant
+// names, not dynamic names created using the generateName field.
+func TestAWSCluster_ValidateUpdate_NoGenerateName(t *testing.T) {
+	tests := []struct {
+		name       string
+		oldCluster *AWSCluster
+		newCluster *AWSCluster
+		wantErr    bool
+	}{
+		{
+			name: "controlPlaneLoadBalancer name can be set to default when left empty",
+			oldCluster: &AWSCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					// Define a constant name, so that we can define a constant
+					// ControlPlaneLoadBalancer Name below.
+					Name: "elbnametest",
+				},
+				Spec: AWSClusterSpec{},
+			},
+			newCluster: &AWSCluster{
+				Spec: AWSClusterSpec{
+					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
+						// The name depends on the cluster name defined above.
+						Name: utilpointer.String("elbnametest-apiserver"),
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.TODO()
+			cluster := tt.oldCluster.DeepCopy()
 			cluster.ObjectMeta.Namespace = "default"
 
 			if err := testEnv.Create(ctx, cluster); err != nil {

@@ -91,13 +91,39 @@ func (r *AWSCluster) ValidateUpdate(old runtime.Object) error {
 					r.Spec.ControlPlaneLoadBalancer.Scheme, "field is immutable, default value was set to internet-facing"),
 			)
 		}
+
+		// If the old name was nil, the only value accepted here is the default, generated value
+		if newLoadBalancer.Name != nil {
+			generatedName, err := GenerateELBName(r.Name)
+			if err != nil {
+				allErrs = append(allErrs,
+					field.InternalError(field.NewPath("spec", "controlPlaneLoadBalancer", "name"),
+						fmt.Errorf("name was previously undefined, and the new value must equal the default, but the default could not be generated: %s", err)),
+				)
+			}
+			if *newLoadBalancer.Name != generatedName {
+				allErrs = append(allErrs,
+					field.Invalid(field.NewPath("spec", "controlPlaneLoadBalancer", "name"),
+						r.Spec.ControlPlaneLoadBalancer.Name, "field is immutable, default value was generated"),
+				)
+			}
+		}
 	} else {
-		// If old scheme was not nil, the new scheme should be the same.
 		existingLoadBalancer := oldC.Spec.ControlPlaneLoadBalancer.DeepCopy()
+
+		// If old scheme was not nil, the new scheme should be the same.
 		if !reflect.DeepEqual(existingLoadBalancer.Scheme, newLoadBalancer.Scheme) {
 			allErrs = append(allErrs,
 				field.Invalid(field.NewPath("spec", "controlPlaneLoadBalancer", "scheme"),
 					r.Spec.ControlPlaneLoadBalancer.Scheme, "field is immutable"),
+			)
+		}
+
+		// If old name was not nil, the new name should be the same.
+		if !reflect.DeepEqual(existingLoadBalancer.Name, newLoadBalancer.Name) {
+			allErrs = append(allErrs,
+				field.Invalid(field.NewPath("spec", "controlPlaneLoadBalancer", "name"),
+					r.Spec.ControlPlaneLoadBalancer.Name, "field is immutable"),
 			)
 		}
 	}
