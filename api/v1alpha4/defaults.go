@@ -71,7 +71,8 @@ func SetDefaults_Labels(obj *metav1.ObjectMeta) { //nolint:golint,stylecheck
 }
 
 func SetDefaults_AWSLoadBalancerSpec(log logr.Logger, clusterName string, obj *AWSLoadBalancerSpec) {
-	if obj.Name == nil {
+	if obj.Name == nil && clusterName != "" {
+		log.Info("Generating ELB name", "clusterName", clusterName)
 		defaultName, err := GenerateELBName(clusterName)
 		if err != nil {
 			log.Error(err, "Failed to generate ELB name")
