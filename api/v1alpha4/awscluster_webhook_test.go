@@ -127,24 +127,6 @@ func TestAWSCluster_ValidateUpdate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "controlPlaneLoadBalancer name can be ",
-			oldCluster: &AWSCluster{
-				Spec: AWSClusterSpec{
-					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
-						Name: utilpointer.String("elb"),
-					},
-				},
-			},
-			newCluster: &AWSCluster{
-				Spec: AWSClusterSpec{
-					ControlPlaneLoadBalancer: &AWSLoadBalancerSpec{
-						Name: utilpointer.String("elb"),
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
 			name: "controlPlaneLoadBalancer name cannot be changed once set",
 			oldCluster: &AWSCluster{
 				Spec: AWSClusterSpec{
