@@ -162,6 +162,10 @@ func (r *AWSCluster) validateSSHKeyName() field.ErrorList {
 func SetDefaultsAWSClusterSpec(log logr.Logger, clusterName string, s *AWSClusterSpec) {
 	SetDefaults_Bastion(&s.Bastion)
 	SetDefaults_NetworkSpec(&s.NetworkSpec)
+
+	if s.ControlPlaneLoadBalancer == nil {
+		s.ControlPlaneLoadBalancer = &AWSLoadBalancerSpec{}
+	}
 	SetDefaults_AWSLoadBalancerSpec(log, clusterName, s.ControlPlaneLoadBalancer)
 
 	if s.IdentityRef == nil {

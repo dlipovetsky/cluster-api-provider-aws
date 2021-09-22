@@ -71,16 +71,15 @@ func SetDefaults_Labels(obj *metav1.ObjectMeta) { //nolint:golint,stylecheck
 }
 
 func SetDefaults_AWSLoadBalancerSpec(log logr.Logger, clusterName string, obj *AWSLoadBalancerSpec) {
-	if obj == nil {
-		obj = &AWSLoadBalancerSpec{}
-	}
-
 	if obj.Name == nil {
 		defaultName, err := GenerateELBName(clusterName)
 		if err != nil {
 			log.Error(err, "Failed to generate ELB name")
 		}
 		obj.Name = utilpointer.StringPtr(defaultName)
+	}
+	if obj.Scheme == nil {
+		obj.Scheme = &ClassicELBSchemeInternetFacing
 	}
 }
 
