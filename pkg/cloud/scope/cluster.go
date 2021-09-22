@@ -184,6 +184,14 @@ func (s *ClusterScope) ControlPlaneLoadBalancerScheme() infrav1.ClassicELBScheme
 	return infrav1.ClassicELBSchemeInternetFacing
 }
 
+// ControlPlaneLoadBalancerName returns the Classic ELB name (user-defined or defaulted).
+func (s *ClusterScope) ControlPlaneLoadBalancerName() *string {
+	if s.ControlPlaneLoadBalancer() != nil {
+		return s.ControlPlaneLoadBalancer().Name
+	}
+	return nil
+}
+
 // ControlPlaneConfigMapName returns the name of the ConfigMap used to
 // coordinate the bootstrapping of control plane nodes.
 func (s *ClusterScope) ControlPlaneConfigMapName() string {
