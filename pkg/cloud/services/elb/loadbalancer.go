@@ -124,10 +124,10 @@ func (s *Service) DeleteLoadbalancers() error {
 		return err
 	}
 
-	elbName, err := GenerateELBName(s.scope.Name())
-	if err != nil {
-		return err
+	if s.scope.ControlPlaneLoadBalancerName() == nil {
+		return errors.Errorf("load balancer name is not defined")
 	}
+	elbName := *s.scope.ControlPlaneLoadBalancerName()
 	elbs = append(elbs, elbName)
 
 	conditions.MarkFalse(s.scope.InfraCluster(), infrav1.LoadBalancerReadyCondition, clusterv1.DeletingReason, clusterv1.ConditionSeverityInfo, "")
@@ -177,10 +177,10 @@ func (s *Service) RegisterInstanceWithClassicELB(instanceID, loadBalancer string
 
 // InstanceIsRegisteredWithAPIServerELB returns true if the instance is already registered with the APIServer ELB.
 func (s *Service) InstanceIsRegisteredWithAPIServerELB(i *infrav1.Instance) (bool, error) {
-	name, err := GenerateELBName(s.scope.Name())
-	if err != nil {
-		return false, err
+	if s.scope.ControlPlaneLoadBalancerName() == nil {
+		return false, errors.Errorf("load balancer name is not defined")
 	}
+	name := *s.scope.ControlPlaneLoadBalancerName()
 
 	input := &elb.DescribeLoadBalancersInput{
 		LoadBalancerNames: aws.StringSlice([]string{name}),
@@ -205,10 +205,11 @@ func (s *Service) InstanceIsRegisteredWithAPIServerELB(i *infrav1.Instance) (boo
 
 // RegisterInstanceWithAPIServerELB registers an instance with a classic ELB.
 func (s *Service) RegisterInstanceWithAPIServerELB(i *infrav1.Instance) error {
-	name, err := GenerateELBName(s.scope.Name())
-	if err != nil {
-		return err
+	if s.scope.ControlPlaneLoadBalancerName() == nil {
+		return errors.Errorf("load balancer name is not defined")
 	}
+	name := *s.scope.ControlPlaneLoadBalancerName()
+
 	out, err := s.describeClassicELB(name)
 	if err != nil {
 		return err
@@ -242,17 +243,17 @@ func (s *Service) RegisterInstanceWithAPIServerELB(i *infrav1.Instance) error {
 
 // DeregisterInstanceFromAPIServerELB de-registers an instance from a classic ELB.
 func (s *Service) DeregisterInstanceFromAPIServerELB(i *infrav1.Instance) error {
-	name, err := GenerateELBName(s.scope.Name())
-	if err != nil {
-		return err
+	if s.scope.ControlPlaneLoadBalancerName() == nil {
+		return errors.Errorf("load balancer name is not defined")
 	}
+	name := *s.scope.ControlPlaneLoadBalancerName()
 
 	input := &elb.DeregisterInstancesFromLoadBalancerInput{
 		Instances:        []*elb.Instance{{InstanceId: aws.String(i.ID)}},
 		LoadBalancerName: aws.String(name),
 	}
 
-	_, err = s.ELBClient.DeregisterInstancesFromLoadBalancer(input)
+	_, err := s.ELBClient.DeregisterInstancesFromLoadBalancer(input)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
@@ -304,17 +305,17 @@ func generateHashedELBName(clusterName string) (string, error) {
 }
 
 func (s *Service) getAPIServerClassicELBSpec() (*infrav1.ClassicELB, error) {
-	elbName, err := GenerateELBName(s.scope.Name())
-	if err != nil {
-		return nil, err
-	}
-
 	securityGroupIDs := []string{}
 	controlPlaneLoadBalancer := s.scope.ControlPlaneLoadBalancer()
 	if controlPlaneLoadBalancer != nil && len(controlPlaneLoadBalancer.AdditionalSecurityGroups) != 0 {
 		securityGroupIDs = append(securityGroupIDs, controlPlaneLoadBalancer.AdditionalSecurityGroups...)
 	}
 	securityGroupIDs = append(securityGroupIDs, s.scope.SecurityGroups()[infrav1.SecurityGroupAPIServerLB].ID)
+
+	if s.scope.ControlPlaneLoadBalancerName() == nil {
+		return nil, errors.Errorf("load balancer name is not defined")
+	}
+	elbName := *s.scope.ControlPlaneLoadBalancerName()
 
 	res := &infrav1.ClassicELB{
 		Name:   elbName,
