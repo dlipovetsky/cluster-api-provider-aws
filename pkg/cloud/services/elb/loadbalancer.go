@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/awserrors"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/converters"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/wait"
-	"sigs.k8s.io/cluster-api-provider-aws/pkg/hash"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -124,7 +123,7 @@ func (s *Service) DeleteLoadbalancers() error {
 		return err
 	}
 
-	elbName, err := GenerateELBName(s.scope.Name())
+	elbName, err := s.scope.ControlPlaneLoadBalancerName()
 	if err != nil {
 		return err
 	}
@@ -177,7 +176,7 @@ func (s *Service) RegisterInstanceWithClassicELB(instanceID, loadBalancer string
 
 // InstanceIsRegisteredWithAPIServerELB returns true if the instance is already registered with the APIServer ELB.
 func (s *Service) InstanceIsRegisteredWithAPIServerELB(i *infrav1.Instance) (bool, error) {
-	name, err := GenerateELBName(s.scope.Name())
+	name, err := s.scope.ControlPlaneLoadBalancerName()
 	if err != nil {
 		return false, err
 	}
@@ -205,7 +204,7 @@ func (s *Service) InstanceIsRegisteredWithAPIServerELB(i *infrav1.Instance) (boo
 
 // RegisterInstanceWithAPIServerELB registers an instance with a classic ELB.
 func (s *Service) RegisterInstanceWithAPIServerELB(i *infrav1.Instance) error {
-	name, err := GenerateELBName(s.scope.Name())
+	name, err := s.scope.ControlPlaneLoadBalancerName()
 	if err != nil {
 		return err
 	}
@@ -242,7 +241,7 @@ func (s *Service) RegisterInstanceWithAPIServerELB(i *infrav1.Instance) error {
 
 // DeregisterInstanceFromAPIServerELB de-registers an instance from a classic ELB.
 func (s *Service) DeregisterInstanceFromAPIServerELB(i *infrav1.Instance) error {
-	name, err := GenerateELBName(s.scope.Name())
+	name, err := s.scope.ControlPlaneLoadBalancerName()
 	if err != nil {
 		return err
 	}
@@ -267,54 +266,18 @@ func (s *Service) DeregisterInstanceFromAPIServerELB(i *infrav1.Instance) error 
 	return err
 }
 
-// GenerateELBName generates a formatted ELB name via either
-// concatenating the cluster name to the "-apiserver" suffix
-// or computing a hash for clusters with names above 32 characters.
-func GenerateELBName(clusterName string) (string, error) {
-	standardELBName := generateStandardELBName(clusterName)
-	if len(standardELBName) <= 32 {
-		return standardELBName, nil
-	}
-
-	elbName, err := generateHashedELBName(clusterName)
-	if err != nil {
-		return "", err
-	}
-
-	return elbName, nil
-}
-
-// generateStandardELBName generates a formatted ELB name based on cluster
-// and ELB name.
-func generateStandardELBName(clusterName string) string {
-	elbCompatibleClusterName := strings.ReplaceAll(clusterName, ".", "-")
-	return fmt.Sprintf("%s-%s", elbCompatibleClusterName, infrav1.APIServerRoleTagValue)
-}
-
-// generateHashedELBName generates a 32-character hashed name based on cluster
-// and ELB name.
-func generateHashedELBName(clusterName string) (string, error) {
-	// hashSize = 32 - length of "k8s" - length of "-" = 28
-	shortName, err := hash.Base36TruncatedHash(clusterName, 28)
-	if err != nil {
-		return "", errors.Wrap(err, "unable to create ELB name")
-	}
-
-	return fmt.Sprintf("%s-%s", shortName, "k8s"), nil
-}
-
 func (s *Service) getAPIServerClassicELBSpec() (*infrav1.ClassicELB, error) {
-	elbName, err := GenerateELBName(s.scope.Name())
-	if err != nil {
-		return nil, err
-	}
-
 	securityGroupIDs := []string{}
 	controlPlaneLoadBalancer := s.scope.ControlPlaneLoadBalancer()
 	if controlPlaneLoadBalancer != nil && len(controlPlaneLoadBalancer.AdditionalSecurityGroups) != 0 {
 		securityGroupIDs = append(securityGroupIDs, controlPlaneLoadBalancer.AdditionalSecurityGroups...)
 	}
 	securityGroupIDs = append(securityGroupIDs, s.scope.SecurityGroups()[infrav1.SecurityGroupAPIServerLB].ID)
+
+	elbName, err := s.scope.ControlPlaneLoadBalancerName()
+	if err != nil {
+		return nil, err
+	}
 
 	res := &infrav1.ClassicELB{
 		Name:   elbName,

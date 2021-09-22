@@ -39,50 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-func TestGenerateELBName(t *testing.T) {
-	tests := []struct {
-		name     string
-		expected string
-	}{
-		{
-			name:     "test",
-			expected: "test-apiserver",
-		},
-		{
-			name:     "0123456789012345678901",
-			expected: "0123456789012345678901-apiserver",
-		},
-		{
-			name:     "01234567890123456789012",
-			expected: "26o3cjil5at5qn27vukn5x09b3ql-k8s",
-		},
-		{
-			name:     "anotherverylongtoolongname",
-			expected: "t8gnrbbifaaf5d0k4xmwui3xwvip-k8s",
-		},
-		{
-			name:     "anotherverylongtoolongnameanotherverylongtoolongname",
-			expected: "tph1huzox1f10z9ow1inrootjws8-k8s",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			elbName, err := GenerateELBName(tt.name)
-			if err != nil {
-				t.Error(err)
-			}
-
-			if elbName != tt.expected {
-				t.Errorf("expected ELB name: %v, got name: %v", tt.expected, elbName)
-			}
-
-			if len(elbName) > 32 {
-				t.Errorf("ELB name too long: %v vs. %s", len(elbName), "32")
-			}
-		})
-	}
-}
-
 func TestGetAPIServerClassicELBSpec_ControlPlaneLoadBalancer(t *testing.T) {
 	tests := []struct {
 		name   string
