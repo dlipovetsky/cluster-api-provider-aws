@@ -47,7 +47,20 @@ func (r *AWSCluster) ConvertTo(dstRaw conversion.Hub) error {
 		restoreInstance(restored.Status.Bastion, dst.Status.Bastion)
 	}
 
+	if restored.Spec.ControlPlaneLoadBalancer != nil {
+		if dst.Spec.ControlPlaneLoadBalancer == nil {
+			dst.Spec.ControlPlaneLoadBalancer = &infrav1.AWSLoadBalancerSpec{}
+		}
+		restoreControlPlaneLoadBalancer(restored.Spec.ControlPlaneLoadBalancer, dst.Spec.ControlPlaneLoadBalancer)
+	}
+
 	return nil
+}
+
+// restoreControlPlaneLoadBalancer manually restores the control plane loadbalancer data.
+// Assumes restored and dst are non-nil.
+func restoreControlPlaneLoadBalancer(restored, dst *infrav1.AWSLoadBalancerSpec) {
+	dst.Name = restored.Name
 }
 
 // ConvertFrom converts the v1beta1 AWSCluster receiver to a v1alpha3 AWSCluster.
@@ -80,7 +93,6 @@ func (r *AWSClusterList) ConvertFrom(srcRaw conversion.Hub) error {
 	return Convert_v1beta1_AWSClusterList_To_v1alpha3_AWSClusterList(src, r, nil)
 }
 
-
 // Convert_v1alpha3_APIEndpoint_To_v1beta1_APIEndpoint .
 func Convert_v1alpha3_APIEndpoint_To_v1beta1_APIEndpoint(in *clusterv1alpha3.APIEndpoint, out *clusterv1.APIEndpoint, s apiconversion.Scope) error {
 	return clusterv1alpha3.Convert_v1alpha3_APIEndpoint_To_v1beta1_APIEndpoint(in, out, s)
@@ -107,4 +119,8 @@ func Convert_v1beta1_NetworkStatus_To_v1alpha3_Network(in *infrav1.NetworkStatus
 		return err
 	}
 	return nil
+}
+
+func Convert_v1beta1_AWSLoadBalancerSpec_To_v1alpha3_AWSLoadBalancerSpec(in *infrav1.AWSLoadBalancerSpec, out *AWSLoadBalancerSpec, s apiconversion.Scope) error {
+	return autoConvert_v1beta1_AWSLoadBalancerSpec_To_v1alpha3_AWSLoadBalancerSpec(in, out, s)
 }
