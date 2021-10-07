@@ -59,6 +59,15 @@ func SetDefaults_Labels(obj *metav1.ObjectMeta) { //nolint:golint,stylecheck
 	// Defaults to set label if no labels have been set
 	if obj.Labels == nil {
 		obj.Labels = map[string]string{
-			clusterv1.ClusterctlMoveHierarchyLabelName: ""}
+			clusterv1.ClusterctlMoveHierarchyLabelName: "",
+		}
+	}
+}
+
+// SetDefaults_AWSClusterSpec is used by defaulter-gen.
+func SetDefaults_AWSClusterSpec(s *AWSClusterSpec) { //nolint:golint,stylecheck
+	// ControlPlaneLoadBalancer must be initialized, so that the Name field can be set by the AWSCluster controller.
+	if s.ControlPlaneLoadBalancer == nil {
+		s.ControlPlaneLoadBalancer = &AWSLoadBalancerSpec{}
 	}
 }
