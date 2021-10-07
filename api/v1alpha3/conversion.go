@@ -48,7 +48,20 @@ func (r *AWSCluster) ConvertTo(dstRaw conversion.Hub) error {
 		restoreInstance(restored.Status.Bastion, dst.Status.Bastion)
 	}
 
+	if restored.Spec.ControlPlaneLoadBalancer != nil {
+		if dst.Spec.ControlPlaneLoadBalancer == nil {
+			dst.Spec.ControlPlaneLoadBalancer = &v1alpha4.AWSLoadBalancerSpec{}
+		}
+		restoreControlPlaneLoadBalancer(restored.Spec.ControlPlaneLoadBalancer, dst.Spec.ControlPlaneLoadBalancer)
+	}
+
 	return nil
+}
+
+// restoreControlPlaneLoadBalancer manually restores the control plane load balancer data.
+// Assumes restored and dst are non-nil.
+func restoreControlPlaneLoadBalancer(restored, dst *v1alpha4.AWSLoadBalancerSpec) {
+	dst.Name = restored.Name
 }
 
 // ConvertFrom converts the v1alpha4 AWSCluster receiver to a v1alpha3 AWSCluster.
@@ -410,4 +423,8 @@ func RestoreRootVolume(restored, dst *v1alpha4.Volume) {
 		dst.Encrypted = nil
 	}
 	dst.Throughput = restored.Throughput
+}
+
+func Convert_v1alpha4_AWSLoadBalancerSpec_To_v1alpha3_AWSLoadBalancerSpec(in *v1alpha4.AWSLoadBalancerSpec, out *AWSLoadBalancerSpec, s apiconversion.Scope) error {
+	return autoConvert_v1alpha4_AWSLoadBalancerSpec_To_v1alpha3_AWSLoadBalancerSpec(in, out, s)
 }

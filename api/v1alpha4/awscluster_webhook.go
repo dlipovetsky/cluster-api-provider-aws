@@ -100,6 +100,13 @@ func (r *AWSCluster) ValidateUpdate(old runtime.Object) error {
 					r.Spec.ControlPlaneLoadBalancer.Scheme, "field is immutable"),
 			)
 		}
+		// If old name was not nil, the new name should be the same.
+		if !reflect.DeepEqual(existingLoadBalancer.Name, newLoadBalancer.Name) {
+			allErrs = append(allErrs,
+				field.Invalid(field.NewPath("spec", "controlPlaneLoadBalancer", "name"),
+					r.Spec.ControlPlaneLoadBalancer.Name, "field is immutable"),
+			)
+		}
 	}
 
 	if !reflect.DeepEqual(oldC.Spec.ControlPlaneEndpoint, clusterv1.APIEndpoint{}) &&
