@@ -407,7 +407,7 @@ func TestDescribeLoadbalancers(t *testing.T) {
 				ELBClient:             elbapiMock,
 			}
 
-			_, err = s.describeClassicELB(tc.lbName)
+			_, err = s.describeAPIServerClassicELB(tc.lbName)
 			if err == nil {
 				t.Fatal(err)
 			}

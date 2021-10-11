@@ -74,9 +74,9 @@ func (s *Service) ReconcileLoadbalancers() error {
 		return err
 	}
 
-	apiELB, err := s.describeClassicELB(spec.Name)
+	apiELB, err := s.describeAPIServerClassicELB(spec.Name)
 	if IsNotFound(err) {
-		apiELB, err = s.createClassicELB(spec)
+		apiELB, err = s.createAPIServerELB(spec)
 		if err != nil {
 			return err
 		}
@@ -149,7 +149,7 @@ func (s *Service) deleteAPIServerELB() error {
 		return err
 	}
 
-	apiELB, err := s.describeClassicELB(*elbName)
+	apiELB, err := s.describeAPIServerClassicELB(*elbName)
 	if IsNotFound(err) {
 		return nil
 	}
@@ -169,7 +169,7 @@ func (s *Service) deleteAPIServerELB() error {
 	}
 
 	if err := wait.WaitForWithRetryable(wait.NewBackoff(), func() (done bool, err error) {
-		_, err = s.describeClassicELB(*elbName)
+		_, err = s.describeAPIServerClassicELB(*elbName)
 		done = IsNotFound(err)
 		return done, nil
 	}); err != nil {
@@ -274,7 +274,7 @@ func (s *Service) RegisterInstanceWithAPIServerELB(i *infrav1.Instance) error {
 	if name == nil {
 		return fmt.Errorf("control plane load balancer name is not defined")
 	}
-	out, err := s.describeClassicELB(*name)
+	out, err := s.describeAPIServerClassicELB(*name)
 	if err != nil {
 		return err
 	}
@@ -452,7 +452,7 @@ func (s *Service) getAPIServerClassicELBSpec(elbName string) (*infrav1.ClassicEL
 	return res, nil
 }
 
-func (s *Service) createClassicELB(spec *infrav1.ClassicELB) (*infrav1.ClassicELB, error) {
+func (s *Service) createAPIServerELB(spec *infrav1.ClassicELB) (*infrav1.ClassicELB, error) {
 	input := &elb.CreateLoadBalancerInput{
 		LoadBalancerName: aws.String(spec.Name),
 		Subnets:          aws.StringSlice(spec.SubnetIDs),
@@ -627,7 +627,7 @@ func (s *Service) listOwnedELBs() ([]string, error) {
 	return arns, nil
 }
 
-func (s *Service) describeClassicELB(name string) (*infrav1.ClassicELB, error) {
+func (s *Service) describeAPIServerClassicELB(name string) (*infrav1.ClassicELB, error) {
 	input := &elb.DescribeLoadBalancersInput{
 		LoadBalancerNames: aws.StringSlice([]string{name}),
 	}
