@@ -181,8 +181,12 @@ func (s *Service) deleteAPIServerELB() error {
 	return nil
 }
 
-func (s *Service) deleteClusterAWSProviderELBs() error {
-	s.scope.V(2).Info("Deleting Cluster AWS Provider load balancers")
+// deleteAWSCloudProviderELBs deletes ELBs owned by the AWS Cloud Provider. For every
+// LoadBalancer-type Service on the cluster, there is one ELB. If the Service is deleted before the
+// cluster is deleted, its ELB is deleted; the ELBs found in this function will typically be for
+// Services that were not deleted before the cluster was deleted.
+func (s *Service) deleteAWSCloudProviderELBs() error {
+	s.scope.V(2).Info("Deleting AWS cloud provider load balancers (created for LoadBalancer-type Services)")
 
 	elbs, err := s.listAWSCloudProviderOwnedELBs()
 	if err != nil {
