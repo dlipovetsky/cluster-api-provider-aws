@@ -56,7 +56,8 @@ func TestAWSClusterReconciler_Reconcile(t *testing.T) {
 					Kind:       "Cluster",
 					Name:       "capi-fail-test",
 					UID:        "1",
-				}}}},
+				},
+			}}},
 			expectError: true,
 		},
 		{
@@ -553,7 +554,8 @@ func TestAWSClusterReconciler_RequeueAWSClusterForUnpausedCluster(t *testing.T) 
 			ownerCluster: &clusterv1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "capi-test"}, Spec: clusterv1.ClusterSpec{InfrastructureRef: &corev1.ObjectReference{
 				APIVersion: clusterv1.GroupVersion.String(),
 				Kind:       "Cluster",
-				Name:       "aws-test"}}},
+				Name:       "aws-test",
+			}}},
 			requeue: false,
 		},
 		{
@@ -561,7 +563,8 @@ func TestAWSClusterReconciler_RequeueAWSClusterForUnpausedCluster(t *testing.T) 
 			ownerCluster: &clusterv1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "capi-test"}, Spec: clusterv1.ClusterSpec{InfrastructureRef: &corev1.ObjectReference{
 				APIVersion: clusterv1.GroupVersion.String(),
 				Kind:       "AWSCluster",
-				Name:       "aws-test"}}},
+				Name:       "aws-test",
+			}}},
 			requeue: false,
 		},
 	}

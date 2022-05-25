@@ -37,9 +37,11 @@ import (
 	expinfrav1 "sigs.k8s.io/cluster-api-provider-aws/exp/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-aws/feature"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/scope"
+	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/awsnode"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/ec2"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/eks"
+	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/elb"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/iamauth"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/kubeproxy"
 	"sigs.k8s.io/cluster-api-provider-aws/pkg/cloud/services/network"
@@ -73,6 +75,38 @@ func securityGroupRolesForControlPlane(scope *scope.ManagedControlPlaneScope) []
 	return roles
 }
 
+// getEC2Service factory func is added for testing purpose so that we can inject mocked EC2Service to the AWSManagedControlPlaneReconciler.
+func (r *AWSManagedControlPlaneReconciler) getEC2Service(scope scope.EC2Scope) services.EC2Interface {
+	if r.ec2ServiceFactory != nil {
+		return r.ec2ServiceFactory(scope)
+	}
+	return ec2.NewService(scope)
+}
+
+// getEKSService factory func is added for testing purpose so that we can inject mocked EKSService to the AWSManagedControlPlaneReconciler.
+func (r *AWSManagedControlPlaneReconciler) getEKSService(scope scope.ManagedControlPlaneScope) services.EKSService {
+	if r.ec2ServiceFactory != nil {
+		return r.ec2ServiceFactory(scope)
+	}
+	return ec2.NewService(scope)
+}
+
+// getELBService factory func is added for testing purpose so that we can inject mocked ELBService to the AWSManagedControlPlaneReconciler.
+func (r *AWSManagedControlPlaneReconciler) getELBService(scope scope.ELBScope) services.ELBInterface {
+	if r.elbServiceFactory != nil {
+		return r.elbServiceFactory(scope)
+	}
+	return elb.NewService(scope)
+}
+
+// getNetworkService factory func is added for testing purpose so that we can inject mocked NetworkService to the AWSManagedControlPlaneReconciler.
+func (r *AWSManagedControlPlaneReconciler) getNetworkService(scope scope.ManagedControlPlaneScope) services.NetworkInterface {
+	if r.networkServiceFactory != nil {
+		return r.networkServiceFactory(scope)
+	}
+	return network.NewService(&scope)
+}
+
 // AWSManagedControlPlaneReconciler reconciles a AWSManagedControlPlane object.
 type AWSManagedControlPlaneReconciler struct {
 	client.Client
@@ -82,6 +116,11 @@ type AWSManagedControlPlaneReconciler struct {
 	EnableIAM            bool
 	AllowAdditionalRoles bool
 	WatchFilterValue     string
+
+	ec2ServiceFactory     func(scope.EC2Scope) services.EC2Interface
+	elbServiceFactory     func(scope.ELBScope) services.ELBInterface
+	networkServiceFactory func(scope.ManagedControlPlaneScope) services.NetworkInterface
+	securityGroupFactory  func(scope.ManagedControlPlaneScope) services.SecurityGroupInterface
 }
 
 // SetupWithManager is used to setup the controller.
@@ -94,7 +133,6 @@ func (r *AWSManagedControlPlaneReconciler) SetupWithManager(ctx context.Context,
 		WithOptions(options).
 		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(log, r.WatchFilterValue)).
 		Build(r)
-
 	if err != nil {
 		return fmt.Errorf("failed setting up the AWSManagedControlPlane controller manager: %w", err)
 	}
@@ -212,8 +250,8 @@ func (r *AWSManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 		return ctrl.Result{}, err
 	}
 
-	ec2Service := ec2.NewService(managedScope)
-	networkSvc := network.NewService(managedScope)
+	ec2Service := r.getEC2Service(managedScope)
+	networkSvc := r.getNetworkService(*managedScope)
 	ekssvc := eks.NewService(managedScope)
 	sgService := securitygroup.NewService(managedScope, securityGroupRolesForControlPlane(managedScope))
 	authService := iamauth.NewService(managedScope, iamauth.BackendTypeConfigMap, managedScope.Client)
@@ -281,8 +319,8 @@ func (r *AWSManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 	log.Info("EKS cluster has no dependencies")
 
 	ekssvc := eks.NewService(managedScope)
-	ec2svc := ec2.NewService(managedScope)
-	networkSvc := network.NewService(managedScope)
+	ec2svc := r.getEC2Service(managedScope)
+	networkSvc := r.getNetworkService(*managedScope)
 	sgService := securitygroup.NewService(managedScope, securityGroupRolesForControlPlane(managedScope))
 
 	if err := ekssvc.DeleteControlPlane(); err != nil {
