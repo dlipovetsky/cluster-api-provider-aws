@@ -548,24 +548,18 @@ func asgNeedsUpdates(machinePoolScope *scope.MachinePoolScope, existingASG *expi
 		return true
 	}
 
-	// can't assume a diff here means the config has drifted, optional fields may be nil and be detected falsely as different
-	if !cmp.Equal(machinePoolScope.AWSMachinePool.Spec.MixedInstancesPolicy, existingASG.MixedInstancesPolicy) {
+	{
 		mixedInstancesPolicy := machinePoolScope.AWSMachinePool.Spec.MixedInstancesPolicy
 
-		// if both are set, examine the optional fields first
-		if mixedInstancesPolicy != nil && existingASG.MixedInstancesPolicy != nil {
-			// do not detect a diff if we did not set the optional field InstancesDistribution
-			if mixedInstancesPolicy.InstancesDistribution != nil {
-				if !cmp.Equal(mixedInstancesPolicy.InstancesDistribution, existingASG.MixedInstancesPolicy.InstancesDistribution) {
-					machinePoolScope.Info("MixedInstancesPolicy.InstancesDistribution diff detected", "incoming", spew.Sprintf("%#v", mixedInstancesPolicy.InstancesDistribution), "existing", spew.Sprintf("%#v", existingASG.MixedInstancesPolicy.InstancesDistribution))
-					return true
-				}
-			}
-			if !cmp.Equal(mixedInstancesPolicy.Overrides, existingASG.MixedInstancesPolicy.Overrides) {
-				machinePoolScope.Info("MixedInstancesPolicy.Overrides diff detected", "incoming", spew.Sprintf("%#v", mixedInstancesPolicy.Overrides), "existing", spew.Sprintf("%#v", existingASG.MixedInstancesPolicy.Overrides))
-				return true
-			}
-		} else {
+		// InstancesDistribution is optional, and the default values come from AWS, so
+		// they are not set by the AWSMachinePool defaulting webhook. If InstancesDistribution is
+		// not set, we use the AWS values for the purpose of comparison.
+		if mixedInstancesPolicy != nil && mixedInstancesPolicy.InstancesDistribution == nil {
+			mixedInstancesPolicy = machinePoolScope.AWSMachinePool.Spec.MixedInstancesPolicy.DeepCopy()
+			mixedInstancesPolicy.InstancesDistribution = existingASG.MixedInstancesPolicy.InstancesDistribution
+		}
+
+		if !cmp.Equal(mixedInstancesPolicy, existingASG.MixedInstancesPolicy) {
 			machinePoolScope.Info("MixedInstancesPolicy diff detected", "incoming", spew.Sprintf("%#v", mixedInstancesPolicy), "existing", spew.Sprintf("%#v", existingASG.MixedInstancesPolicy))
 			return true
 		}
