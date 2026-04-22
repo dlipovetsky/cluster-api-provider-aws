@@ -50,7 +50,7 @@ jobs:
           echo "Previous version is: $PREVIOUS_VERSION"
           echo "Release branch is: $RELEASE_BRANCH"
           echo "Release tag is: $RELEASE_TAG"
-          PROD_REGISTRY="ghcr.io/nutanix-cloud-native" make release
+          make release REGISTRY=$REGISTRY PROD_REGISTRY=$PROD_REGISTRY GH_ORG_NAME=$GH_ORG_NAME TAG=$TAG
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY: "ghcr.io/nutanix-cloud-native"
@@ -86,8 +86,8 @@ jobs:
           echo "RELEASE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
       - name: Push docker images
         run: |
-          make docker-build-all
-          make docker-push-all
+          make docker-build-all REGISTRY=$REGISTRY PROD_REGISTRY=$PROD_REGISTRY GH_ORG_NAME=$GH_ORG_NAME TAG=$TAG
+          make docker-push-all REGISTRY=$REGISTRY PROD_REGISTRY=$PROD_REGISTRY GH_ORG_NAME=$GH_ORG_NAME TAG=$TAG
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY: "ghcr.io/nutanix-cloud-native"
